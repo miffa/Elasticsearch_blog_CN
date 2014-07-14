@@ -28,8 +28,106 @@ Elasticsearch(包括Lucene)把索引存储在不可变 _片段_ -- 每个片段�
 已经存在的文档)，新的分片会被创建。后台运行的合并进程把几个小的分片合并成一个新的大的分片，然后老的分
 片被彻底删除。
 
+典型的，Elasticsearch里面的索引将包含各种类型的文档。每个 `_type` 拥有它自己的模式或 _映射_ 。1个分片
+可能包含各种类型的文档。所以，如果你想在单个type里修改单个字段的定义，你除了重新给你的index的文档重新
+建索引没有别的方法了。
+
+==== 增加字段是自由的
+
+一个分段只包含那些字段真正在文档里的index。这意味着你能是用 `put_mapping` API自由的添加字段。没有必要
+重新建索引。
+
+==== 给数据重新建索引
+
+给数据重新建索引的过程非常简单。首先，创建一个有着新的映射和设置的索引。
+
+[source,js]
+------
+curl -XPUT localhost:9200/new_index -d '
+{
+    "mappings": {
+        "my_type": { ... new mapping definition ...}
+    }
+}
+'
+------
+
+然后，把文档从旧的索引里拉出来，使用 _scrolled search_ 并且使用 `bulk` API把数据放到新的索引里。许多客
+户端API提供了 `reindex()` 方法，这个方法帮你把重建数据索引的所有的事都做了。一旦完成，就的索引就可以删
+除了。
+
+*注意*：确保在你的搜索请求了里包含了 `search_type=scan` 。这个参数使排序失效，并且使得 `deep paging` 
+高效。
+
+这种方法的问题是索引的名字变了，这意味着你必须让你的应用去使用新的索引名字。
+
+==== 不停服务重新索引数据
+
+索引别名给了我们在后台运行重新索引的灵活性，使得这种变化对我们的应用完全透明。别名是一个符号链接，能够
+指向1个或多个真正的索引。
+
+典型的工作流程如下。首先，创建一个索引，附加一个版本或者时间戳到索引的名字：
+
+[source,js]
+------
+curl -XPUT localhost:9200/my_index_v1 -d '
+{ ... mappings ... }
+'
+------
+
+创建一个指向这个索引的别名：
+
+[source,js]
+----
+curl -XPOST localhost:9200/_aliases -d '
+{
+    "actions": [
+        { "add": {
+            "alias": "my_index",
+            "index": "my_index_v1"
+        }}
+    ]
+}
+'
+----
+
+现在你的应用直接使用 `my_index` 就像它是一个真正的索引一样。
+
+当你需要重新索引数据的，你创建一个新的索引，后缀添加一个版本号：
+
+[source,js]
+----
+curl -XPUT localhost:9200/my_index_v2 -d '
+{ ... mappings ... }
+'
+----
+
+把数据从 `my_index_v1` 重新索引到 `my_index_v2` ，然后把别名 `my_index` 指向到新的索引，单个操作如下：
+
+[source,js]
+----
+curl -XPOST localhost:9200/_aliases -d '
+{
+    "actions": [
+        { "remove": {
+            "alias": "my_index",
+            "index": "my_index_v1"
+        }},
+        { "add": {
+            "alias": "my_index",
+            "index": "my_index_v2"
+        }}
+    ]
+}
+'
+----
+
+最后，删除老的索引
+
+[source,js]
+----
+curl -XDELETE localhost:9200/my_index_v1
+----
 
 
-
- 
 
