@@ -40,12 +40,7 @@ Elasticsearch(包括Lucene)把索引存储在不可变 _片段_ -- 每个片段�
 ==== 给数据重新建索引
 
 给数据重新建索引的过程非常简单。首先，创建一个有着新的映射和设置的索引。
-
-[source,js]
-------
-curl -XPUT localhost:9200/new_index -d '
-{
-    "mappings": {
+[source,js] ------ curl -XPUT localhost:9200/new_index -d ' { "mappings": {
         "my_type": { ... new mapping definition ...}
     }
 }
@@ -129,5 +124,64 @@ curl -XPOST localhost:9200/_aliases -d '
 curl -XDELETE localhost:9200/my_index_v1
 ----
 
+现在你已经成功的在后台把你的数据重新索引了且没有停止业务。你的应用根部不知道索引已经变了。
 
+上述的是一个标准的改变mapping的过程，下面讨论的是一些别的方法供你参考。
+
+==== 我不在乎老的数据
+
+如果你想改变某个字段的类型，并且不在意老数据变得不可搜索。这种情况下，有如下的几种方法：
+
+===== 删除mapping
+
+如果你删除某个 `type` 的mapping，然后使用 `put_mapping` API给这个 `type` 创建一个新的mapping。
+ *注意* ：当你删除了某个type的mapping时，索引里存放在这个type的所有文档也被删除了。
+
+在某个type包含的数据量很小的时候，这个方法特别有用
+
+===== 重命名字段
+因为可以自由增加新的字段，所以你可以给未来的文档增加新的字段名字和定义。当然，这意味着你需要修改在应用里使用
+的字段名。
+
+===== 升级成多字段
+Multi-fileds允许单个字段被用于不同的目的。典型的用法是用2种方法来索引 `title` 字段：一个是用来查询的 `analyzed` 
+字符串，另一种是用来排序的 `not_analyzed` 字符串。
+
+任何数字字段(不包含 `object` 和 `nested` 类型的字段)都可以使用 `put_mapping` API升级成multi-field且不需要重新
+索引数据。比如，我们有一个当前类型是 `string` 的名为 `created` 的字段：
+
+[source,js]
+----
+{
+    "created": { "type": "string"}
+}
+----
+
+我们通过给它增加一个子字段将它升级成multi-field:
+
+[source,js]
+----
+curl -XPUT localhost:9200/my_index/my_type/_mapping -d '
+{
+    "my_type": {
+        "properties": {
+            "created": {
+                "type":   "multi_field",
+                "fields": {
+                    "created": { "type": "string" },
+                    "date":    { "type": "date"   }
+                }
+            }
+        }
+    }
+}
+'
+----
+
+原来的 `created` 字段作为 `"主"` 子字段存在，可以通过 `created` 或 `created.created` 来查询。新的 `date` 变体可以
+通过 `created.data` 来查询，并且只在新文档里出现。
+
+===== 使用别名获取更大的灵活性
+
+ 
 
