@@ -40,7 +40,9 @@ Elasticsearch(包括Lucene)把索引存储在不可变 _片段_ -- 每个片段�
 ==== 给数据重新建索引
 
 给数据重新建索引的过程非常简单。首先，创建一个有着新的映射和设置的索引。
-[source,js] ------ curl -XPUT localhost:9200/new_index -d ' { "mappings": {
+[source,js] 
+------ 
+curl -XPUT localhost:9200/new_index -d ' { "mappings": {
         "my_type": { ... new mapping definition ...}
     }
 }
