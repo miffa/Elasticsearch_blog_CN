@@ -183,5 +183,33 @@ curl -XPUT localhost:9200/my_index/my_type/_mapping -d '
 
 ===== 使用别名获取更大的灵活性
 
- 
+有时候上述的方法还是不够好。也许你的应用有100,000 `user` 文档和10,000,000 `user` 文档。你想改变 `user` 文档的mapping，
+但是不想重新索引 `blog` 文档的数据。
+
+没有任何理由不能让你在不同的index里存储不同的type。Elasticsearch在多个index里搜索就像在一个index里搜索那么简单。这种
+方法，你只需要重新索引那些包含你想改变的type的index。通过聪明的使用别名，重新索引的过程能够对你的应用完全透明。
+
+通过这种方法，你的应用应该对每种type使用独立的别名。比如，你应该把 `user` 文档索引到 `my_index_user`，把 `blog` 文档
+索引到 `my_index_blog` ，而不是把它们都索引到 `my_index` 。
+
+[source,js]
+----
+curl -XPOST localhost:9200/_aliases -d '
+{
+    "actions": [
+        { "add": {
+            "alias": "my_index_user",
+            "index": "my_index_v2"
+        }},
+        { "add": {
+            "alias": "my_index_blog",
+            "index": "my_index_v2"
+        }}
+    ]
+}
+'
+----
+
+如你所见，Elasticsearch提供了许多选项去管理index，再加上一点深思熟虑，就能不停服务的来管理mapping的改变。
+
 
