@@ -242,7 +242,7 @@ curl -XPUT localhost:9200/my_index_users_v1 -d '
 
 [source,js]
 ----
-curl 'localhost:9200/my_index_user/user?scroll=1m&amp;search_type=scan' -d '
+curl 'localhost:9200/my_index_user/user?scroll=1m&search_type=scan' -d '
 {
     "size": 1000
 }
