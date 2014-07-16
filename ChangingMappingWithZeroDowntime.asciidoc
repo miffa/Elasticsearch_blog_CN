@@ -213,6 +213,105 @@ curl -XPOST localhost:9200/_aliases -d '
 '
 ----
 
+如果要跨 `user` 和 `blog` 搜索，你只要同时指定这2个别名就可以了。
+
+[source,js]
+----
+curl localhost:9200/my_index_blog,my_index_user/_search
+----
+
+当你想改变user的映射的时候，首先为user新建一个index，然后为 `user` 文档选择合适的主分片的个数：
+
+[source,js]
+----
+curl -XPUT localhost:9200/my_index_users_v1 -d '
+{
+    "settings": {
+        "index": {
+            "number_of_shards": 1
+        }
+    },
+    "mappings": {
+        "user": { ... new user mapping ... }
+    }
+}
+'
+----
+
+只把user文档从老的index索引进新的index：
+
+[source,js]
+----
+curl 'localhost:9200/my_index_user/user?scroll=1m&amp;search_type=scan' -d '
+{
+    "size": 1000
+}
+'
+----
+
+然后更新别名：
+
+
+[source,js]
+----
+curl -XPOST localhost:9200/_aliases -d '
+{
+    "actions": [
+        { "remove": {
+            "alias": "my_index_user",
+            "index": "my_index_v2"
+        }},
+        { "add": {
+            "alias": "my_index_user",
+            "index": "my_index_user_v1"
+        }}
+    ]
+}
+'
+----
+
+你可以使用一个 `delete-by-query` 请求从老的index里删除所有的 `user` 文档。
+
+
+[source,js]
+----
+curl -XDELETE localhost:9200/my_index_v1/user
+----
+
+从现在开始，任何时候你想修改 `user` 文档的映射，你都可以使用我上面描述过的标准的重新索引的方法。
+
+===== 使用别名不需要重新索引
+
+如果你只是想让修改对新的文档生效，你可以使用别名的方法，而不用去重新索引数据。你仍然需要创建一个
+名为 `my_index_user_v1` 的索引，但是创建2个别名： `my_index_user` 给索引用以及 `my_index_users` 
+(复数)给查询用：
+
+
+[source,js]
+----
+curl -XPOST localhost:9200/_aliases -d '
+{
+    "actions": [
+        { "add": {
+            "alias": "my_index_user",
+            "index": "my_index_user_v1"
+        }},
+        { "add": {
+            "alias": "my_index_users",
+            "index": "my_index_user_v1"
+        }},
+        { "add": {
+            "alias": "my_index_users",
+            "index": "my_index_v1"
+        }},
+    ]
+}
+'
+----
+
+别名 `my_index_user` 只指向新的index，所有新的user文档都会用这个别名来索引。别名 `my_index_users` 同时
+指向新的和老的index。所以你可以同时搜索这2个index。老的index会使用老的mapping，新的索引会使用新的mapping。
+
 如你所见，Elasticsearch提供了许多选项去管理index，再加上一点深思熟虑，就能不停服务的来管理mapping的改变。
 
 
